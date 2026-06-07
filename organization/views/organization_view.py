@@ -30,7 +30,7 @@ class OrganizationPublicView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        serializer = OrganizationPublicSerializer(org)
+        serializer = OrganizationPublicSerializer(org, context={"request":request})
 
         return Response(
             {
