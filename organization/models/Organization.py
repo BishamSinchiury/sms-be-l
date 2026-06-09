@@ -13,9 +13,5 @@ class Organization(models.Model):
     cover_picture = models.ImageField(upload_to="organizations/covers/")
     domain_name = models.CharField(max_length=253, unique=True)
 
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
-        self.clean()
-
     def __str__(self):
         return self.name

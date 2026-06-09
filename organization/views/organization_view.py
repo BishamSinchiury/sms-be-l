@@ -19,7 +19,6 @@ class OrganizationPublicView(APIView):
                 {"message": "Domain_name is required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        domain_name = f"https://{domain_name}"
         try:
             org = Organization.objects.get(domain_name=domain_name)
         except Organization.DoesNotExist:

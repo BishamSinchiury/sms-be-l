@@ -89,14 +89,31 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'organization.middleware.TenantMiddleware',  
+
 ]
 
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/1",  
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
+}
+
+OTP_EXPIRY_SECONDS = 300        
+OTP_LENGTH = 6
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://192.168.1.68:5173"
 ]
+
+CORS_ALLOW_CREDENTIALS = True
+
 ROOT_URLCONF = 'sms.urls'
 
 TEMPLATES = [
@@ -132,6 +149,19 @@ DATABASES = {
     }
 }
 
+EMAIL_BACKEND = EMAIL_BACKEND = (
+        'django.core.mail.backends.console.EmailBackend'
+        if DEBUG else
+        'django.core.mail.backends.smtp.EmailBackend'
+    )
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+
+EMAIL_HOST_USER = env("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
+
+DEFAULT_FROM_EMAIL = f"My App <{EMAIL_HOST_USER}>"
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
@@ -168,3 +198,11 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+
+SIMPLE_JWT = {
+    'AUTH_COOKIE': 'user_refresh',           # cookie name for regular users
+    'AUTH_COOKIE_SECURE': not DEBUG,         # HTTPS only in production
+    'AUTH_COOKIE_HTTP_ONLY': True,           # JavaScript cannot read it
+    'AUTH_COOKIE_SAMESITE': 'Lax',           # sent on same-site + top-level nav
+}

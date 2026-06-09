@@ -2,6 +2,7 @@ import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.contrib.auth.base_user import BaseUserManager
+from organization.models import Organization
 
 
 class CustomUserManager(BaseUserManager):
@@ -38,7 +39,9 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     is_sysadmin = models.BooleanField(default=False)
 
     uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
-
+    org = models.ForeignKey(Organization, on_delete=models.CASCADE, null=True)
+    current_token_jti = models.CharField(max_length=255, blank=True, null=True)
+     
     objects = CustomUserManager()
 
     USERNAME_FIELD = "email"
