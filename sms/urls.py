@@ -13,7 +13,8 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/csrf/", get_csrf_token),
     path("api/org/", include("organization.urls")),
-    path("api/auth/", include("users.urls"))
+    path("api/auth/", include("users.urls")),
+    path("api/rbac/", include("rbac.urls")),
 ]
 
 if settings.DEBUG:

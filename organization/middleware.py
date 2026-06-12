@@ -36,8 +36,11 @@ class TenantMiddleware:
         try:
             org_id_in_token = str(token.get('org_id'))
 
+            print(org_id_in_token)
+
             organization = get_org_from_request(request)
-            org_id_from_hostname = str(organization.uuid)
+            print(organization)
+            org_id_from_hostname = str(organization.id)
 
             if org_id_in_token != org_id_from_hostname:
                 return JsonResponse(

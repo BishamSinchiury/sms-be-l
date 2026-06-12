@@ -1,1 +1,1 @@
-from .Organization import Organization
+from .Organization import Organization, SubOrganization

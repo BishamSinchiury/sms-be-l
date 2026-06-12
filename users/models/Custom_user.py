@@ -3,7 +3,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.contrib.auth.base_user import BaseUserManager
 from organization.models import Organization
-
+from core.models import PersonalDetail, ContactDetail, AddressDetail, DocumentDetail
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -40,8 +40,39 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     org = models.ForeignKey(Organization, on_delete=models.CASCADE, null=True)
-    current_token_jti = models.CharField(max_length=255, blank=True, null=True)
-     
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    personal = models.OneToOneField(
+        PersonalDetail,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='user'
+    )
+    contact = models.OneToOneField(
+        ContactDetail,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='user'
+    )
+    address = models.OneToOneField(
+        AddressDetail,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='user'
+    )
+    document = models.OneToOneField(
+        DocumentDetail,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='user'
+    )
+
     objects = CustomUserManager()
 
     USERNAME_FIELD = "email"

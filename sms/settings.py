@@ -46,13 +46,15 @@ DEFAULT_APP = [
 ]
 
 THIRD_PARTY_APP = [
-    'corsheaders'
+    'corsheaders',
+    'rest_framework'
 ]
 
 USER_APP =[
     'organization',
     'users',
-    'rest_framework'
+    'core',
+    'rbac',
 ]
 
 AUTH_USER_MODEL = "users.CustomUser"
@@ -75,6 +77,10 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
     'USER_ID_FIELD': 'uuid',
     'USER_ID_CLAIM': 'user_uuid',
+    'AUTH_COOKIE': 'user_refresh',
+    'AUTH_COOKIE_SECURE': not DEBUG,
+    'AUTH_COOKIE_HTTP_ONLY': True,
+    'AUTH_COOKIE_SAMESITE': 'Lax',
 }
 
 MEDIA_URL = '/media/'
@@ -200,9 +206,36 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 
-SIMPLE_JWT = {
-    'AUTH_COOKIE': 'user_refresh',           # cookie name for regular users
-    'AUTH_COOKIE_SECURE': not DEBUG,         # HTTPS only in production
-    'AUTH_COOKIE_HTTP_ONLY': True,           # JavaScript cannot read it
-    'AUTH_COOKIE_SAMESITE': 'Lax',           # sent on same-site + top-level nav
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'logs/django.log',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file'],
+            'level': 'WARNING',    # only warnings and errors
+            'propagate': True,
+        },
+        'rbac': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
 }

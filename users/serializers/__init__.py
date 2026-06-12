@@ -4,3 +4,10 @@ from .admin_serializer import (
     AdminLoginSerializer,
     AdminOTPVerifySerializer
 )
+from .user_serializer import  (
+    UserListSerializer,
+    UserDetailSerializer,
+    UserCreateSerializer,
+    UserUpdateSerializer,
+    RoleMiniSerializer,
+)

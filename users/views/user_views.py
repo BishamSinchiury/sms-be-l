@@ -1,0 +1,159 @@
+from users.models import CustomUser
+from users.permissions import IsSysAdmin
+from users.serializers import (
+    UserListSerializer,
+    UserDetailSerializer,
+    UserCreateSerializer,
+    UserUpdateSerializer,
+    RoleMiniSerializer,
+)
+from organization.views import get_org_from_token
+from rbac.utils import log_activity
+from rbac.models import ActivityLog, Role
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
+
+
+
+class UserListCreateView(APIView):
+    permission_classes = [IsAuthenticated, IsSysAdmin]
+
+    def get(self, request):
+        org = get_org_from_token(request)
+        if not org:
+            return Response({'detail': 'Organization not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        users = (
+            CustomUser.objects
+            .filter(org=org)
+            .select_related('personal', 'contact', 'user_role', 'user_role__role')
+            .order_by('-created_at')
+        )
+        return Response(UserListSerializer(users, many=True).data)
+
+    def post(self, request):
+        org = get_org_from_token(request)
+        if not org:
+            return Response({'detail': 'Organization not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = UserCreateSerializer(data=request.data, context={'org': org})
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        user = serializer.save()
+
+        log_activity(
+            user=request.user,
+            action=ActivityLog.Action.USER_CREATED,
+            request=request,
+            target=user,
+            metadata={'email': user.email}
+        )
+
+        return Response(UserDetailSerializer(user).data, status=status.HTTP_201_CREATED)
+
+
+class MeView(APIView):
+    """Returns the details of the currently authenticated user."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = CustomUser.objects.select_related(
+            'personal', 'contact', 'address', 'user_role', 'user_role__role'
+        ).get(uuid=request.user.uuid)
+        return Response(UserDetailSerializer(user).data)
+
+class UserDetailView(APIView):
+    permission_classes = [IsAuthenticated, IsSysAdmin]
+
+    def get_object(self, request, user_uuid):
+        org = get_org_from_token(request)
+        if not org:
+            return None, None
+        try:
+            user = CustomUser.objects.select_related('personal', 'contact', 'address', 'user_role', 'user_role__role').get(
+                uuid=user_uuid, org=org
+            )
+            return org, user
+        except CustomUser.DoesNotExist:
+            return org, None
+
+    def get(self, request, user_uuid):
+        org, user = self.get_object(request, user_uuid)
+        if not org:
+            return Response({'detail': 'Organization not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if not user:
+            return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(UserDetailSerializer(user).data)
+
+    def patch(self, request, user_uuid):
+        org, user = self.get_object(request, user_uuid)
+        if not org:
+            return Response({'detail': 'Organization not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if not user:
+            return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Prevent a sysadmin from locking themselves out
+        if str(user.uuid) == str(request.user.uuid) and 'is_active' in request.data and not request.data.get('is_active'):
+            return Response({'detail': 'You cannot deactivate your own account.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = UserUpdateSerializer(user, data=request.data, partial=True, context={'org': org})
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        user = serializer.save()
+
+        action = ActivityLog.Action.USER_UPDATED
+        if 'is_active' in request.data:
+            action = ActivityLog.Action.USER_ACTIVATED if request.data.get('is_active') else ActivityLog.Action.USER_DEACTIVATED
+        elif 'role_uuid' in request.data:
+            action = ActivityLog.Action.ROLE_ASSIGNED
+
+        log_activity(
+            user=request.user,
+            action=action,
+            request=request,
+            target=user,
+            metadata={'fields': list(request.data.keys())}
+        )
+
+        return Response(UserDetailSerializer(user).data)
+
+    def delete(self, request, user_uuid):
+        org, user = self.get_object(request, user_uuid)
+        if not org:
+            return Response({'detail': 'Organization not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if not user:
+            return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if str(user.uuid) == str(request.user.uuid):
+            return Response({'detail': 'You cannot delete your own account.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        email = user.email
+
+        log_activity(
+            user=request.user,
+            action=ActivityLog.Action.USER_DELETED,
+            request=request,
+            target=None,
+            metadata={'email': email}
+        )
+
+        user.delete()
+        return Response({'detail': 'User deleted.'}, status=status.HTTP_204_NO_CONTENT)
+
+
+class RoleListView(APIView):
+    """Simple list of roles in the org — used to populate role dropdowns."""
+    permission_classes = [IsAuthenticated, IsSysAdmin]
+
+    def get(self, request):
+        org = get_org_from_token(request)
+        if not org:
+            return Response({'detail': 'Organization not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        roles = Role.objects.filter(org=org).order_by('name')
+        return Response(RoleMiniSerializer(roles, many=True).data)

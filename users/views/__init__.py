@@ -8,5 +8,13 @@ from .login_view import (
 from .admin_view import (
     AdminLoginView,
     AdminOTPVerifyView,
-    AdminLogoutView
+    AdminLogoutView,
+    AdminTokenRefreshView
+)
+
+from .user_views import (
+    UserDetailView,
+    UserListCreateView,
+    RoleListView,
+    MeView
 )

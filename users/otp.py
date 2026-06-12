@@ -5,6 +5,15 @@ from django.conf import settings
 import hmac
 from django.core.mail import send_mail
 
+class OTPEmailError(Exception):
+    """
+    Raised when OTP email delivery fails.
+    We use a custom exception so views can catch this specifically
+    and return the right error message to the frontend —
+    rather than catching a broad Exception and missing other bugs.
+    """
+    pass
+
 
 def _make_otp_key(email: str, purpose: str) -> str:
     """
@@ -98,5 +107,5 @@ def send_otp_email(email: str, otp: str, purpose: str) -> None:
         message=message,
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[email],
-        fail_silently=False,    # raise exception if email fails — don't silently swallow errors
+        fail_silently=False,    
     )
