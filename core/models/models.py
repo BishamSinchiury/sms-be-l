@@ -69,14 +69,14 @@ class AddressDetail(models.Model):
     district  = models.CharField(max_length=100)
     city      = models.CharField(max_length=100)
     latitude  = models.DecimalField(
-        max_digits=9,
-        decimal_places=6,
+        max_digits=12,
+        decimal_places=9,
         null=True,
         blank=True
     )
     longitude = models.DecimalField(
-        max_digits=9,
-        decimal_places=6,
+        max_digits=12,
+        decimal_places=9,
         null=True,
         blank=True
     )
@@ -84,19 +84,43 @@ class AddressDetail(models.Model):
     def __str__(self):
         return f"{self.city}, {self.district}, {self.province}"
 
+import uuid
+from django.db import models
+
+
 class DocumentDetail(models.Model):
-    """
-    Stores registration document information.
-    Linked via OneToOne from User, Organization, Vendor etc.
-    
-    We store registration numbers as CharFields — not the actual
-    documents. Actual document files would be a separate model
-    with a ForeignKey to whoever owns them.
-    """
-    uuid                          = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
-    id_registration               = models.CharField(max_length=100, blank=True)
-    tax_registration              = models.CharField(max_length=100, blank=True)
-    birth_certificate_registration = models.CharField(max_length=100, blank=True)
+    uuid = models.UUIDField(
+        default=uuid.uuid4,
+        unique=True,
+        editable=False
+    )
+
+    id_registration = models.FileField(
+        upload_to="documents/id/",
+        blank=True,
+        null=True
+    )
+
+    tax_registration = models.FileField(
+        upload_to="documents/tax/",
+        blank=True,
+        null=True
+    )
+
+    birth_certificate_registration = models.FileField(
+        upload_to="documents/birth_certificate/",
+        blank=True,
+        null=True
+    )
 
     def __str__(self):
-        return self.id_registration or self.tax_registration or "No registration"
+        if self.id_registration:
+            return self.id_registration.name
+
+        if self.tax_registration:
+            return self.tax_registration.name
+
+        if self.birth_certificate_registration:
+            return self.birth_certificate_registration.name
+
+        return "No registration documents"

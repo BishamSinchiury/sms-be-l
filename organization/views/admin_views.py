@@ -76,7 +76,7 @@ class OrgBasicInfoView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        serializer = OrgBasicInfoSerializer(org)
+        serializer = OrgBasicInfoSerializer(org, context={'request': request})
         return Response(serializer.data)
 
     def patch(self, request):

@@ -7,4 +7,11 @@ from .admin_views import (
     OrgDocumentView,
     get_org_from_token
 )
-from .sub_organization_view import SubOrgDetailView, SubOrgListCreateView
+from .sub_organization_view import (
+    SubOrgDetailView,
+    SubOrgListCreateView,
+    SubOrgBasicView,
+    SubOrgContactView,
+    SubOrgAddressView,
+    SubOrgPublicListView,
+)

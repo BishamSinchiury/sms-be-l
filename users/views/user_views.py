@@ -1,3 +1,4 @@
+from django.db import models
 from users.models import CustomUser
 from users.permissions import IsSysAdmin
 from users.serializers import (
@@ -26,13 +27,45 @@ class UserListCreateView(APIView):
         if not org:
             return Response({'detail': 'Organization not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        users = (
+        # Start with all users in this org
+        queryset = (
             CustomUser.objects
             .filter(org=org)
             .select_related('personal', 'contact', 'user_role', 'user_role__role')
             .order_by('-created_at')
         )
-        return Response(UserListSerializer(users, many=True).data)
+
+        # ── Filters ─────────────────────────────────────────────────────
+        search = request.query_params.get('search', '').strip()
+        if search:
+            queryset = queryset.filter(
+                models.Q(email__icontains=search) |
+                models.Q(username__icontains=search) |
+                models.Q(personal__first_name__icontains=search) |
+                models.Q(personal__last_name__icontains=search)
+            )
+
+        role = request.query_params.get('role', '').strip()
+        if role:
+            queryset = queryset.filter(user_role__role__name__iexact=role)
+
+        status_filter = request.query_params.get('status', '').strip()
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+
+        is_active = request.query_params.get('is_active', '').strip()
+        if is_active == 'true':
+            queryset = queryset.filter(is_active=True)
+        elif is_active == 'false':
+            queryset = queryset.filter(is_active=False)
+
+        is_staff = request.query_params.get('is_staff', '').strip()
+        if is_staff == 'true':
+            queryset = queryset.filter(is_staff=True)
+        elif is_staff == 'false':
+            queryset = queryset.filter(is_staff=False)
+
+        return Response(UserListSerializer(queryset, many=True).data)
 
     def post(self, request):
         org = get_org_from_token(request)

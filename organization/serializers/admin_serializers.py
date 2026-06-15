@@ -29,6 +29,11 @@ class OrgBasicInfoSerializer(serializers.ModelSerializer):
     primary_color   = serializers.CharField(validators=[validate_hex_color])
     secondary_color = serializers.CharField(validators=[validate_hex_color])
 
+    # ImageField stays writable so PATCH with FormData actually saves the file.
+    # URL building is handled in to_representation below.
+    logo          = serializers.ImageField(required=False, allow_null=True)
+    cover_picture = serializers.ImageField(required=False, allow_null=True)
+
     class Meta:
         model  = Organization
         fields = [
@@ -39,15 +44,34 @@ class OrgBasicInfoSerializer(serializers.ModelSerializer):
             'primary_color',
             'secondary_color',
             'cover_picture',
+            'domain_name',
         ]
         read_only_fields = ['id']
 
+    def to_representation(self, instance):
+        """Return absolute URLs for image fields on the way out."""
+        data    = super().to_representation(instance)
+        request = self.context.get('request')
+
+        if instance.logo:
+            data['logo'] = (
+                request.build_absolute_uri(instance.logo.url)
+                if request else instance.logo.url
+            )
+        else:
+            data['logo'] = None
+
+        if instance.cover_picture:
+            data['cover_picture'] = (
+                request.build_absolute_uri(instance.cover_picture.url)
+                if request else instance.cover_picture.url
+            )
+        else:
+            data['cover_picture'] = None
+
+        return data
+
     def validate_name(self, value):
-        """
-        Name must be unique across all orgs — but not counting itself.
-        Without this check, updating your own name would fail
-        because it already exists (it's yours).
-        """
         qs = Organization.objects.filter(name=value).exclude(pk=self.instance.pk)
         if qs.exists():
             raise serializers.ValidationError("An organization with this name already exists.")
@@ -131,15 +155,15 @@ class OrgAddressSerializer(serializers.ModelSerializer):
     district = serializers.CharField(max_length=100, write_only=True)
     city     = serializers.CharField(max_length=100, write_only=True)
     latitude  = serializers.DecimalField(
-        max_digits=9,
-        decimal_places=6,
+        max_digits=12,
+        decimal_places=9,
         required=False,
         allow_null=True,
         write_only=True
     )
     longitude = serializers.DecimalField(
-        max_digits=9,
-        decimal_places=6,
+        max_digits=12,
+        decimal_places=9,
         required=False,
         allow_null=True,
         write_only=True
@@ -192,43 +216,85 @@ class OrgAddressSerializer(serializers.ModelSerializer):
 
 # ─── Section 4: Documents ─────────────────────────────────────────────────────
 
+
 class OrgDocumentSerializer(serializers.ModelSerializer):
-    id_registration                = serializers.CharField(max_length=100, required=False, allow_blank=True, write_only=True)
-    tax_registration               = serializers.CharField(max_length=100, required=False, allow_blank=True, write_only=True)
-    birth_certificate_registration = serializers.CharField(max_length=100, required=False, allow_blank=True, write_only=True)
+    id_registration = serializers.FileField(
+        required=False,
+        allow_null=True
+    )
+
+    tax_registration = serializers.FileField(
+        required=False,
+        allow_null=True
+    )
+
+    birth_certificate_registration = serializers.FileField(
+        required=False,
+        allow_null=True
+    )
 
     class Meta:
-        model  = Organization
-        fields = ['id', 'id_registration', 'tax_registration', 'birth_certificate_registration']
+        model = Organization
+        fields = [
+            'id',
+            'id_registration',
+            'tax_registration',
+            'birth_certificate_registration',
+        ]
         read_only_fields = ['id']
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
+
         if instance.document:
-            data['id_registration']                = instance.document.id_registration
-            data['tax_registration']               = instance.document.tax_registration
-            data['birth_certificate_registration'] = instance.document.birth_certificate_registration
-        else:
-            data['id_registration']                = None
-            data['tax_registration']               = None
-            data['birth_certificate_registration'] = None
+            request = self.context.get("request")
+
+            data["id_registration"] = (
+                request.build_absolute_uri(instance.document.id_registration.url)
+                if instance.document.id_registration and request
+                else instance.document.id_registration.url
+                if instance.document.id_registration
+                else None
+            )
+
+            data["tax_registration"] = (
+                request.build_absolute_uri(instance.document.tax_registration.url)
+                if instance.document.tax_registration and request
+                else instance.document.tax_registration.url
+                if instance.document.tax_registration
+                else None
+            )
+
+            data["birth_certificate_registration"] = (
+                request.build_absolute_uri(instance.document.birth_certificate_registration.url)
+                if instance.document.birth_certificate_registration and request
+                else instance.document.birth_certificate_registration.url
+                if instance.document.birth_certificate_registration
+                else None
+            )
+
         return data
 
     def update(self, instance, validated_data):
         document_data = {
-            'id_registration':                validated_data.get('id_registration', ''),
-            'tax_registration':               validated_data.get('tax_registration', ''),
-            'birth_certificate_registration': validated_data.get('birth_certificate_registration', ''),
+            field: validated_data.get(field)
+            for field in [
+                "id_registration",
+                "tax_registration",
+                "birth_certificate_registration",
+            ]
+            if field in validated_data
         }
 
         if instance.document:
             for field, value in document_data.items():
                 setattr(instance.document, field, value)
+
             instance.document.save()
         else:
             document = DocumentDetail.objects.create(**document_data)
             instance.document = document
-            instance.save()
+            instance.save(update_fields=["document"])
 
         return instance
 

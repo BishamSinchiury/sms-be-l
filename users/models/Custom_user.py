@@ -30,6 +30,11 @@ class CustomUserManager(BaseUserManager):
 
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        UNCLAIMED = "unclaimed", "Unclaimed"
+
     email = models.EmailField(unique=True)
     username = models.CharField(max_length=50, blank=True)
 
@@ -37,6 +42,12 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
     is_sysadmin = models.BooleanField(default=False)
+
+    status = models.CharField(
+        max_length=10,
+        choices=Status.choices,
+        default=Status.UNCLAIMED
+    )
 
     uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     org = models.ForeignKey(Organization, on_delete=models.CASCADE, null=True)
