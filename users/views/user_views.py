@@ -65,6 +65,12 @@ class UserListCreateView(APIView):
         elif is_staff == 'false':
             queryset = queryset.filter(is_staff=False)
 
+        is_verified = request.query_params.get('is_verified', '').strip()
+        if is_verified == 'true':
+            queryset = queryset.filter(is_verified=True)
+        elif is_verified == 'false':
+            queryset = queryset.filter(is_verified=False)
+
         return Response(UserListSerializer(queryset, many=True).data)
 
     def post(self, request):

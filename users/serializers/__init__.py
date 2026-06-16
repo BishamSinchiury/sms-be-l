@@ -4,6 +4,7 @@ from .admin_serializer import (
     AdminLoginSerializer,
     AdminOTPVerifySerializer
 )
+from .public_serializer import VerifyOTPSerializer
 from .user_serializer import  (
     UserListSerializer,
     UserDetailSerializer,

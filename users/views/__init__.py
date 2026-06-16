@@ -18,3 +18,11 @@ from .user_views import (
     RoleListView,
     MeView
 )
+from .public_views import (
+    PublicRoleListView,
+    SignupView,
+    VerifyOTPView,
+    ResetPasswordView,
+    VerifyPasswordResetOTPView,
+    ForgotPasswordView
+)

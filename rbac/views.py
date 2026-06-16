@@ -127,7 +127,13 @@ class RoleListCreateView(APIView):
         if not org:
             return Response({'detail': 'Organization not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        roles = Role.objects.filter(org=org).prefetch_related('permissions').order_by('name')
+        roles = Role.objects.filter(org=org).prefetch_related('permissions')
+        
+        search_query = request.query_params.get('search', '').strip()
+        if search_query:
+            roles = roles.filter(name__icontains=search_query)
+            
+        roles = roles.order_by('name')
         return Response(RoleSerializer(roles, many=True, context={'org': org}).data)
 
     def post(self, request):

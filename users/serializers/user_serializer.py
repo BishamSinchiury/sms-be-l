@@ -2,12 +2,13 @@ from rest_framework import serializers
 from users.models import CustomUser
 from users.models import CustomUser
 from core.models import PersonalDetail
+from django.contrib.auth.password_validation import validate_password
 from rbac.models import Role, UserRole
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
-        fields = ('uuid', 'email', 'username', 'is_verified', 'is_staff', 'is_sysadmin')
+        fields = ('uuid', 'email', 'username', 'is_verified', 'status', 'is_staff', 'is_sysadmin')
         read_only_fields = fields
 
 
@@ -26,7 +27,7 @@ class UserListSerializer(serializers.ModelSerializer):
         model  = CustomUser
         fields = [
             'uuid', 'email', 'username', 'full_name',
-            'is_active', 'is_staff', 'is_sysadmin',
+            'is_active', 'is_verified', 'status', 'is_staff', 'is_sysadmin',
             'role', 'created_at',
         ]
 
@@ -60,7 +61,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
         model  = CustomUser
         fields = [
             'uuid', 'email', 'username',
-            'is_active', 'is_staff', 'is_sysadmin',
+            'is_active', 'is_verified', 'status', 'is_staff', 'is_sysadmin',
             'role', 'role_uuid',
             'first_name', 'last_name', 'gender', 'date_of_birth',
             'phone_number', 'phone_number2', 'contact_email',
@@ -163,6 +164,8 @@ class UserUpdateSerializer(serializers.Serializer):
     """Partial update — active state, staff flag, role, basic personal info."""
     username   = serializers.CharField(max_length=50, required=False, allow_blank=True)
     is_active  = serializers.BooleanField(required=False)
+    is_verified= serializers.BooleanField(required=False)
+    status     = serializers.CharField(max_length=10, required=False)
     is_staff   = serializers.BooleanField(required=False)
     first_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
     last_name  = serializers.CharField(max_length=100, required=False, allow_blank=True)
@@ -182,7 +185,7 @@ class UserUpdateSerializer(serializers.Serializer):
         first_name = validated_data.pop('first_name', None)
         last_name  = validated_data.pop('last_name', None)
 
-        for attr in ['username', 'is_active', 'is_staff']:
+        for attr in ['username', 'is_active', 'is_staff', 'is_verified', 'status']:
             if attr in validated_data:
                 setattr(instance, attr, validated_data[attr])
 
@@ -207,3 +210,17 @@ class UserUpdateSerializer(serializers.Serializer):
                 UserRole.objects.create(user=instance, role=role)
 
         return instance
+    
+
+
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    email       = serializers.EmailField()
+    reset_token = serializers.CharField()
+    new_password = serializers.CharField(write_only=True, min_length=8)
+
+    def validate_new_password(self, value):
+        # Runs Django's full password validator chain (length, common passwords, etc.)
+        validate_password(value)
+        return value

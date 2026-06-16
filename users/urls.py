@@ -14,4 +14,14 @@ urlpatterns = [
     path('users/',                    views.UserListCreateView.as_view(), name='user-list-create'),
     path('users/<uuid:user_uuid>/',   views.UserDetailView.as_view(),     name='user-detail'),
     path('roles/',                    views.RoleListView.as_view(),       name='role-list'),
+
+    # Public / Signup
+    path('public-roles/',             views.PublicRoleListView.as_view(), name='public-role-list'),
+    path('signup/',                   views.SignupView.as_view(),         name='signup'),
+    path('signup/verify/',            views.VerifyOTPView.as_view(),      name='signup-verify'),
+
+    # urls.py
+    path('forgot-password/',        views.ForgotPasswordView.as_view()),
+    path('verify-reset-otp/',       views.VerifyPasswordResetOTPView.as_view()),
+    path('reset-password/',         views.ResetPasswordView.as_view()),
 ]

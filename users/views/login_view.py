@@ -17,6 +17,8 @@ def get_tokens_for_user(user, organization):
     refresh['org_id'] = str(organization.id)
     refresh['is_admin'] = user.is_staff
     refresh['is_sysadmin'] = user.is_sysadmin
+    refresh['is_verified'] = user.is_verified
+    refresh['status'] = user.status
     refresh['email'] = user.email
     refresh['username'] = user.username
     return {

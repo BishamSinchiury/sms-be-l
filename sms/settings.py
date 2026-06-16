@@ -55,6 +55,7 @@ USER_APP =[
     'users',
     'core',
     'rbac',
+    'Academics'
 ]
 
 AUTH_USER_MODEL = "users.CustomUser"
