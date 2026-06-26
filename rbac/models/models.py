@@ -2,6 +2,8 @@ import uuid
 from django.db import models
 from organization.models import Organization
 from core.models import TimestampModel
+from users.models import CustomUser
+from django.core.exceptions import ValidationError
 
 
 
@@ -30,34 +32,60 @@ class Permission(TimestampModel):
     def __str__(self):
         return f"{self.org.name} — {self.name}"
     
-class Role(TimestampModel):
+
+class Role(models.Model):
     """
-    A named collection of permissions scoped to an organization.
-    Examples: Student, Teacher, Staff, Vendor, Owner
-    
-    Sysadmin creates roles and assigns permissions to them.
-    Users are then assigned a role.
+    Granular staff position, e.g. 'Accountant', 'Librarian', 'Principal'.
+    Student / Teacher / Owner / Guardian / Vendor are fixed top-level roles
+    on CustomUser.role and never go through this table — only Staff users do.
     """
-    uuid        = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
-    name        = models.CharField(max_length=50)
-    description = models.CharField(max_length=255, blank=True)
-    org         = models.ForeignKey(
+
+    org = models.ForeignKey(
         Organization,
         on_delete=models.CASCADE,
-        related_name='roles'
+        related_name="roles",
+        null=True,
+        blank=True,
+        help_text=_("Leave blank for a system-wide role not tied to one org."),
     )
-    permissions = models.ManyToManyField(
-        Permission,
-        through='RolePermission',
-        related_name='roles',
-        blank=True
-    )
+    name = models.CharField(max_length=100)
+    is_active = models.BooleanField(default=True)
 
     class Meta:
-        unique_together = ('name', 'org')  # "Teacher" can exist in org1 and org2
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["org", "name"], name="unique_role_name_per_org"),
+        ]
 
     def __str__(self):
-        return f"{self.org.name} — {self.name}"
+        return self.name
+
+
+class UserRole(models.Model):
+    """
+    Assigns a granular Role to a Staff user. One role per user at a time.
+    """
+
+    user = models.OneToOneField(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name="user_role",
+    )
+    role = models.ForeignKey(
+        Role,
+        on_delete=models.PROTECT,  # can't delete a role while users hold it
+        related_name="user_roles",
+    )
+
+    def clean(self):
+        super().clean()
+        if self.user_id and self.user.role != CustomUser.RoleChoices.STAFF:
+            raise ValidationError(
+                _("UserRole can only be assigned to users whose top-level role is Staff.")
+            )
+
+    def __str__(self):
+        return f"{self.user.email} — {self.role.name}"
     
 
 class RolePermission(TimestampModel):
@@ -75,24 +103,6 @@ class RolePermission(TimestampModel):
     def __str__(self):
         return f"{self.role.name} — {self.permission.codename}"
     
-class UserRole(TimestampModel):
-    """
-    Assigns a role to a user within an org.
-    A user can only have one role at a time per org.
-    """
-    user = models.OneToOneField(
-        'users.CustomUser',
-        on_delete=models.CASCADE,
-        related_name='user_role'
-    )
-    role = models.ForeignKey(
-        Role,
-        on_delete=models.PROTECT,  # can't delete a role if users are assigned to it
-        related_name='user_roles'
-    )
-
-    def __str__(self):
-        return f"{self.user.email} — {self.role.name}"
     
 class UserPermissionOverride(TimestampModel):
     """

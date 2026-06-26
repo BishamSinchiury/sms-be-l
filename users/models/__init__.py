@@ -1,1 +1,1 @@
-from .Custom_user import CustomUser
+from .Custom_user import CustomUser, UserProfile

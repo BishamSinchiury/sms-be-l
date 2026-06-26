@@ -12,6 +12,32 @@ from rbac.utils import log_activity
 from rbac.models import ActivityLog
 
 
+class SubOrgScopedView(APIView):
+    """
+    Shared get_object for any view that operates on a single SubOrganization
+    scoped to the requesting user's org. Replaces 4 copies of the same
+    method across SubOrgDetailView / SubOrgBasicView / SubOrgContactView /
+    SubOrgAddressView.
+    """
+    permission_classes = [IsAuthenticated, IsSysAdmin]
+
+    def get_object(self, request, suborg_uuid):
+        org = get_org_from_token(request)
+        if not org:
+            return None, None
+        try:
+            return org, org.suborgs.get(uuid=suborg_uuid)
+        except SubOrganization.DoesNotExist:
+            return org, None
+
+    def not_found_response(self, org, suborg):
+        if not org:
+            return Response({'detail': 'Organization not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if not suborg:
+            return Response({'detail': 'Sub-organization not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return None
+
+
 class SubOrgListCreateView(APIView):
     permission_classes = [IsAuthenticated, IsSysAdmin]
 
@@ -37,7 +63,7 @@ class SubOrgListCreateView(APIView):
 
         log_activity(
             user=request.user,
-            action=ActivityLog.Action.SUBORG_CREATED,
+            verb=ActivityLog.Verb.CREATED,
             request=request,
             target=suborg,
             metadata={'name': suborg.name}
@@ -46,32 +72,20 @@ class SubOrgListCreateView(APIView):
         return Response(SubOrganizationSerializer(suborg).data, status=status.HTTP_201_CREATED)
 
 
-class SubOrgDetailView(APIView):
-    permission_classes = [IsAuthenticated, IsSysAdmin]
-
-    def get_object(self, request, suborg_uuid):
-        org = get_org_from_token(request)
-        if not org:
-            return None, None
-        try:
-            return org, org.suborgs.get(uuid=suborg_uuid)
-        except SubOrganization.DoesNotExist:
-            return org, None
+class SubOrgDetailView(SubOrgScopedView):
 
     def get(self, request, suborg_uuid):
         org, suborg = self.get_object(request, suborg_uuid)
-        if not org:
-            return Response({'detail': 'Organization not found.'}, status=status.HTTP_404_NOT_FOUND)
-        if not suborg:
-            return Response({'detail': 'Sub-organization not found.'}, status=status.HTTP_404_NOT_FOUND)
+        err = self.not_found_response(org, suborg)
+        if err:
+            return err
         return Response(SubOrganizationSerializer(suborg).data)
 
     def patch(self, request, suborg_uuid):
         org, suborg = self.get_object(request, suborg_uuid)
-        if not org:
-            return Response({'detail': 'Organization not found.'}, status=status.HTTP_404_NOT_FOUND)
-        if not suborg:
-            return Response({'detail': 'Sub-organization not found.'}, status=status.HTTP_404_NOT_FOUND)
+        err = self.not_found_response(org, suborg)
+        if err:
+            return err
 
         serializer = SubOrganizationSerializer(suborg, data=request.data, partial=True, context={'org': org})
         if not serializer.is_valid():
@@ -81,7 +95,7 @@ class SubOrgDetailView(APIView):
 
         log_activity(
             user=request.user,
-            action=ActivityLog.Action.SUBORG_UPDATED,
+            verb=ActivityLog.Verb.UPDATED,
             request=request,
             target=suborg,
             metadata={'section': 'suborg', 'fields': list(request.data.keys())}
@@ -91,54 +105,45 @@ class SubOrgDetailView(APIView):
 
     def delete(self, request, suborg_uuid):
         org, suborg = self.get_object(request, suborg_uuid)
-        if not org:
-            return Response({'detail': 'Organization not found.'}, status=status.HTTP_404_NOT_FOUND)
-        if not suborg:
-            return Response({'detail': 'Sub-organization not found.'}, status=status.HTTP_404_NOT_FOUND)
+        err = self.not_found_response(org, suborg)
+        if err:
+            return err
 
         name = suborg.name
         suborg_uuid_str = str(suborg.uuid)
 
+        suborg.delete()
+
+        # Logged after delete with an explicit target_repr/metadata since
+        # the instance no longer exists to derive a representation from.
         log_activity(
             user=request.user,
-            action=ActivityLog.Action.SUBORG_DELETED,
+            verb=ActivityLog.Verb.DELETED,
             request=request,
             target=None,
+            target_repr=name,
             metadata={'name': name, 'uuid': suborg_uuid_str}
         )
 
-        suborg.delete()
         return Response({'detail': 'Sub-organization deleted.'}, status=status.HTTP_204_NO_CONTENT)
 
 
 # ─── SubOrg Section: Basic Info (name, description) ─────────────────────────────
 
-class SubOrgBasicView(APIView):
-    permission_classes = [IsAuthenticated, IsSysAdmin]
-
-    def get_object(self, request, suborg_uuid):
-        org = get_org_from_token(request)
-        if not org:
-            return None, None
-        try:
-            return org, org.suborgs.get(uuid=suborg_uuid)
-        except SubOrganization.DoesNotExist:
-            return org, None
+class SubOrgBasicView(SubOrgScopedView):
 
     def get(self, request, suborg_uuid):
         org, suborg = self.get_object(request, suborg_uuid)
-        if not org:
-            return Response({'detail': 'Organization not found.'}, status=status.HTTP_404_NOT_FOUND)
-        if not suborg:
-            return Response({'detail': 'Sub-organization not found.'}, status=status.HTTP_404_NOT_FOUND)
+        err = self.not_found_response(org, suborg)
+        if err:
+            return err
         return Response(SubOrgBasicSerializer(suborg).data)
 
     def patch(self, request, suborg_uuid):
         org, suborg = self.get_object(request, suborg_uuid)
-        if not org:
-            return Response({'detail': 'Organization not found.'}, status=status.HTTP_404_NOT_FOUND)
-        if not suborg:
-            return Response({'detail': 'Sub-organization not found.'}, status=status.HTTP_404_NOT_FOUND)
+        err = self.not_found_response(org, suborg)
+        if err:
+            return err
 
         serializer = SubOrgBasicSerializer(suborg, data=request.data, partial=True, context={'org': org})
         if not serializer.is_valid():
@@ -148,7 +153,7 @@ class SubOrgBasicView(APIView):
 
         log_activity(
             user=request.user,
-            action=ActivityLog.Action.SUBORG_UPDATED,
+            verb=ActivityLog.Verb.UPDATED,
             request=request,
             target=suborg,
             metadata={'section': 'basic_info', 'fields': list(request.data.keys())}
@@ -159,33 +164,20 @@ class SubOrgBasicView(APIView):
 
 # ─── SubOrg Section: Contact ────────────────────────────────────────────────────
 
-class SubOrgContactView(APIView):
-    permission_classes = [IsAuthenticated, IsSysAdmin]
-
-    def get_object(self, request, suborg_uuid):
-        org = get_org_from_token(request)
-        if not org:
-            return None, None
-        try:
-            return org, org.suborgs.get(uuid=suborg_uuid)
-        except SubOrganization.DoesNotExist:
-            return org, None
+class SubOrgContactView(SubOrgScopedView):
 
     def get(self, request, suborg_uuid):
         org, suborg = self.get_object(request, suborg_uuid)
-        if not org:
-            return Response({'detail': 'Organization not found.'}, status=status.HTTP_404_NOT_FOUND)
-        if not suborg:
-            return Response({'detail': 'Sub-organization not found.'}, status=status.HTTP_404_NOT_FOUND)
-        serializer = SubOrgContactSerializer(suborg)
-        return Response(serializer.data)
+        err = self.not_found_response(org, suborg)
+        if err:
+            return err
+        return Response(SubOrgContactSerializer(suborg).data)
 
     def patch(self, request, suborg_uuid):
         org, suborg = self.get_object(request, suborg_uuid)
-        if not org:
-            return Response({'detail': 'Organization not found.'}, status=status.HTTP_404_NOT_FOUND)
-        if not suborg:
-            return Response({'detail': 'Sub-organization not found.'}, status=status.HTTP_404_NOT_FOUND)
+        err = self.not_found_response(org, suborg)
+        if err:
+            return err
 
         serializer = SubOrgContactSerializer(suborg, data=request.data, partial=True)
         if not serializer.is_valid():
@@ -195,7 +187,7 @@ class SubOrgContactView(APIView):
 
         log_activity(
             user=request.user,
-            action=ActivityLog.Action.SUBORG_UPDATED,
+            verb=ActivityLog.Verb.UPDATED,
             request=request,
             target=suborg,
             metadata={'section': 'contact', 'fields': list(request.data.keys())}
@@ -206,33 +198,20 @@ class SubOrgContactView(APIView):
 
 # ─── SubOrg Section: Address ────────────────────────────────────────────────────
 
-class SubOrgAddressView(APIView):
-    permission_classes = [IsAuthenticated, IsSysAdmin]
-
-    def get_object(self, request, suborg_uuid):
-        org = get_org_from_token(request)
-        if not org:
-            return None, None
-        try:
-            return org, org.suborgs.get(uuid=suborg_uuid)
-        except SubOrganization.DoesNotExist:
-            return org, None
+class SubOrgAddressView(SubOrgScopedView):
 
     def get(self, request, suborg_uuid):
         org, suborg = self.get_object(request, suborg_uuid)
-        if not org:
-            return Response({'detail': 'Organization not found.'}, status=status.HTTP_404_NOT_FOUND)
-        if not suborg:
-            return Response({'detail': 'Sub-organization not found.'}, status=status.HTTP_404_NOT_FOUND)
-        serializer = SubOrgAddressSerializer(suborg)
-        return Response(serializer.data)
+        err = self.not_found_response(org, suborg)
+        if err:
+            return err
+        return Response(SubOrgAddressSerializer(suborg).data)
 
     def patch(self, request, suborg_uuid):
         org, suborg = self.get_object(request, suborg_uuid)
-        if not org:
-            return Response({'detail': 'Organization not found.'}, status=status.HTTP_404_NOT_FOUND)
-        if not suborg:
-            return Response({'detail': 'Sub-organization not found.'}, status=status.HTTP_404_NOT_FOUND)
+        err = self.not_found_response(org, suborg)
+        if err:
+            return err
 
         serializer = SubOrgAddressSerializer(suborg, data=request.data, partial=True)
         if not serializer.is_valid():
@@ -242,7 +221,7 @@ class SubOrgAddressView(APIView):
 
         log_activity(
             user=request.user,
-            action=ActivityLog.Action.SUBORG_UPDATED,
+            verb=ActivityLog.Verb.UPDATED,
             request=request,
             target=suborg,
             metadata={'section': 'address', 'fields': list(request.data.keys())}

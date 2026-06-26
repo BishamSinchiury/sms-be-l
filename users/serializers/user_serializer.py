@@ -1,9 +1,9 @@
 from rest_framework import serializers
-from users.models import CustomUser
-from users.models import CustomUser
+from users.models import CustomUser, UserProfile
 from core.models import PersonalDetail
 from django.contrib.auth.password_validation import validate_password
 from rbac.models import Role, UserRole
+
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -36,8 +36,10 @@ class UserListSerializer(serializers.ModelSerializer):
         return user_role.role.name if user_role else None
 
     def get_full_name(self, obj):
-        if obj.personal and (obj.personal.first_name or obj.personal.last_name):
-            return f"{obj.personal.first_name} {obj.personal.last_name}".strip()
+        profile = getattr(obj, 'profile', None)
+        personal = profile.personal if profile else None
+        if personal and (personal.first_name or personal.last_name):
+            return f"{personal.first_name} {personal.last_name}".strip()
         return None
 
 
@@ -69,6 +71,23 @@ class UserDetailSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
         ]
 
+    # --- internal helpers -------------------------------------------------
+    def _profile(self, obj):
+        return getattr(obj, 'profile', None)
+
+    def _personal(self, obj):
+        profile = self._profile(obj)
+        return profile.personal if profile else None
+
+    def _contact(self, obj):
+        profile = self._profile(obj)
+        return profile.contact if profile else None
+
+    def _address(self, obj):
+        profile = self._profile(obj)
+        return profile.address if profile else None
+
+    # --- role ---------------------------------------------------------------
     def get_role(self, obj):
         user_role = getattr(obj, 'user_role', None)
         return user_role.role.name if user_role else None
@@ -77,38 +96,52 @@ class UserDetailSerializer(serializers.ModelSerializer):
         user_role = getattr(obj, 'user_role', None)
         return user_role.role.uuid if user_role else None
 
+    # --- personal -------------------------------------------------------------
     def get_first_name(self, obj):
-        return obj.personal.first_name if obj.personal else None
+        personal = self._personal(obj)
+        return personal.first_name if personal else None
 
     def get_last_name(self, obj):
-        return obj.personal.last_name if obj.personal else None
+        personal = self._personal(obj)
+        return personal.last_name if personal else None
 
     def get_gender(self, obj):
-        return obj.personal.gender if obj.personal else None
+        personal = self._personal(obj)
+        return personal.gender if personal else None
 
     def get_date_of_birth(self, obj):
-        return obj.personal.date_of_birth if obj.personal else None
+        personal = self._personal(obj)
+        return personal.date_of_birth if personal else None
 
+    # --- contact -------------------------------------------------------------
     def get_phone_number(self, obj):
-        return obj.contact.phone_number if obj.contact else None
+        contact = self._contact(obj)
+        return contact.phone_number if contact else None
 
     def get_phone_number2(self, obj):
-        return obj.contact.phone_number2 if obj.contact else None
+        contact = self._contact(obj)
+        return contact.phone_number2 if contact else None
 
     def get_contact_email(self, obj):
-        return obj.contact.email if obj.contact else None
+        contact = self._contact(obj)
+        return contact.email if contact else None
 
+    # --- address -------------------------------------------------------------
     def get_country(self, obj):
-        return obj.address.country if obj.address else None
+        address = self._address(obj)
+        return address.country if address else None
 
     def get_province(self, obj):
-        return obj.address.province if obj.address else None
+        address = self._address(obj)
+        return address.province if address else None
 
     def get_district(self, obj):
-        return obj.address.district if obj.address else None
+        address = self._address(obj)
+        return address.district if address else None
 
     def get_city(self, obj):
-        return obj.address.city if obj.address else None
+        address = self._address(obj)
+        return address.city if address else None
 
 
 class UserCreateSerializer(serializers.Serializer):
@@ -140,18 +173,17 @@ class UserCreateSerializer(serializers.Serializer):
         last_name  = validated_data.pop('last_name', '')
         password   = validated_data.pop('password')
 
-        personal = None
-        if first_name or last_name:
-            personal = PersonalDetail.objects.create(first_name=first_name, last_name=last_name)
-
         user = CustomUser.objects.create_user(
             email=validated_data['email'],
             password=password,
             username=validated_data.get('username', ''),
             is_staff=validated_data.get('is_staff', False),
             org=org,
-            personal=personal,
         )
+
+        if first_name or last_name:
+            personal = PersonalDetail.objects.create(first_name=first_name, last_name=last_name)
+            UserProfile.objects.create(user=user, personal=personal)
 
         if role_uuid:
             role = Role.objects.get(uuid=role_uuid, org=org)
@@ -162,14 +194,14 @@ class UserCreateSerializer(serializers.Serializer):
 
 class UserUpdateSerializer(serializers.Serializer):
     """Partial update — active state, staff flag, role, basic personal info."""
-    username   = serializers.CharField(max_length=50, required=False, allow_blank=True)
-    is_active  = serializers.BooleanField(required=False)
-    is_verified= serializers.BooleanField(required=False)
-    status     = serializers.CharField(max_length=10, required=False)
-    is_staff   = serializers.BooleanField(required=False)
-    first_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    last_name  = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    role_uuid  = serializers.UUIDField(required=False, allow_null=True)
+    username    = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    is_active   = serializers.BooleanField(required=False)
+    is_verified = serializers.BooleanField(required=False)
+    status      = serializers.CharField(max_length=10, required=False)
+    is_staff    = serializers.BooleanField(required=False)
+    first_name  = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    last_name   = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    role_uuid   = serializers.UUIDField(required=False, allow_null=True)
 
     def validate_role_uuid(self, value):
         if value is None:
@@ -188,20 +220,19 @@ class UserUpdateSerializer(serializers.Serializer):
         for attr in ['username', 'is_active', 'is_staff', 'is_verified', 'status']:
             if attr in validated_data:
                 setattr(instance, attr, validated_data[attr])
+        instance.save()
 
         if first_name is not None or last_name is not None:
-            if instance.personal:
-                if first_name is not None:
-                    instance.personal.first_name = first_name
-                if last_name is not None:
-                    instance.personal.last_name = last_name
-                instance.personal.save()
-            else:
-                instance.personal = PersonalDetail.objects.create(
-                    first_name=first_name or '', last_name=last_name or ''
-                )
-
-        instance.save()
+            profile, _ = UserProfile.objects.get_or_create(user=instance)
+            personal = profile.personal or PersonalDetail.objects.create()
+            if first_name is not None:
+                personal.first_name = first_name
+            if last_name is not None:
+                personal.last_name = last_name
+            personal.save()
+            if profile.personal_id is None:
+                profile.personal = personal
+                profile.save()
 
         if role_uuid is not serializers.empty:
             UserRole.objects.filter(user=instance).delete()
@@ -210,17 +241,13 @@ class UserUpdateSerializer(serializers.Serializer):
                 UserRole.objects.create(user=instance, role=role)
 
         return instance
-    
-
-
 
 
 class ResetPasswordSerializer(serializers.Serializer):
-    email       = serializers.EmailField()
-    reset_token = serializers.CharField()
+    email        = serializers.EmailField()
+    reset_token  = serializers.CharField()
     new_password = serializers.CharField(write_only=True, min_length=8)
 
     def validate_new_password(self, value):
-        # Runs Django's full password validator chain (length, common passwords, etc.)
         validate_password(value)
         return value

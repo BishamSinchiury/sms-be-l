@@ -31,7 +31,7 @@ class UserListCreateView(APIView):
         queryset = (
             CustomUser.objects
             .filter(org=org)
-            .select_related('personal', 'contact', 'user_role', 'user_role__role')
+            .select_related('profile__personal', 'profile__contact', 'user_role', 'user_role__role')
             .order_by('-created_at')
         )
 
@@ -41,8 +41,8 @@ class UserListCreateView(APIView):
             queryset = queryset.filter(
                 models.Q(email__icontains=search) |
                 models.Q(username__icontains=search) |
-                models.Q(personal__first_name__icontains=search) |
-                models.Q(personal__last_name__icontains=search)
+                models.Q(profile__personal__first_name__icontains=search) |
+                models.Q(profile__personal__last_name__icontains=search)
             )
 
         role = request.query_params.get('role', '').strip()
@@ -101,7 +101,7 @@ class MeView(APIView):
 
     def get(self, request):
         user = CustomUser.objects.select_related(
-            'personal', 'contact', 'address', 'user_role', 'user_role__role'
+            'profile__personal', 'profile__contact', 'profile__address', 'user_role', 'user_role__role'
         ).get(uuid=request.user.uuid)
         return Response(UserDetailSerializer(user).data)
 
@@ -113,9 +113,9 @@ class UserDetailView(APIView):
         if not org:
             return None, None
         try:
-            user = CustomUser.objects.select_related('personal', 'contact', 'address', 'user_role', 'user_role__role').get(
-                uuid=user_uuid, org=org
-            )
+            user = CustomUser.objects.select_related(
+                'profile__personal', 'profile__contact', 'profile__address', 'user_role', 'user_role__role'
+            ).get(uuid=user_uuid, org=org)
             return org, user
         except CustomUser.DoesNotExist:
             return org, None

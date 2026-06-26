@@ -28,66 +28,29 @@ class CustomUserManager(BaseUserManager):
 
         return self.create_user(email, password, **extra_fields)
 
-
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
         APPROVED = "approved", "Approved"
         UNCLAIMED = "unclaimed", "Unclaimed"
-
     email = models.EmailField(unique=True)
     username = models.CharField(max_length=50, blank=True)
-
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
     is_sysadmin = models.BooleanField(default=False)
-
-    status = models.CharField(
-        max_length=10,
-        choices=Status.choices,
-        default=Status.UNCLAIMED
-    )
-
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.UNCLAIMED)
     uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     org = models.ForeignKey(Organization, on_delete=models.CASCADE, null=True)
-
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    personal = models.OneToOneField(
-        PersonalDetail,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='user'
-    )
-    contact = models.OneToOneField(
-        ContactDetail,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='user'
-    )
-    address = models.OneToOneField(
-        AddressDetail,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='user'
-    )
-    document = models.OneToOneField(
-        DocumentDetail,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='user'
-    )
-
     objects = CustomUserManager()
-
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
 
-    def __str__(self):
-        return self.email
+class UserProfile(models.Model):
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name="profile")
+    personal = models.OneToOneField(PersonalDetail, on_delete=models.SET_NULL, null=True, blank=True)
+    contact = models.OneToOneField(ContactDetail, on_delete=models.SET_NULL, null=True, blank=True)
+    address = models.OneToOneField(AddressDetail, on_delete=models.SET_NULL, null=True, blank=True)
